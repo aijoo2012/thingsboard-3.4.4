@@ -35,6 +35,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * 默认的系统级别的actors
+ */
 @Slf4j
 @Data
 public class DefaultTbActorSystem implements TbActorSystem {

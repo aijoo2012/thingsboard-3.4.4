@@ -88,6 +88,11 @@ public final class TbActorMailbox implements TbActorCtx {
         }
     }
 
+    /**
+     * 将消息存放到队列中
+     * @param msg
+     * @param highPriority
+     */
     private void enqueue(TbActorMsg msg, boolean highPriority) {
         if (!destroyInProgress.get()) {
             if (highPriority) {
@@ -95,8 +100,10 @@ public final class TbActorMailbox implements TbActorCtx {
             } else {
                 normalPriorityMsgs.add(msg);
             }
+            //尝试加入队列
             tryProcessQueue(true);
         } else {
+            //如果是高级别且是更新规则节点的。需要开启同步,确保并发风险
             if (highPriority && msg.getMsgType().equals(MsgType.RULE_NODE_UPDATED_MSG)) {
                 synchronized (this) {
                     if (stopReason == TbActorStopReason.INIT_FAILED) {
@@ -108,15 +115,22 @@ public final class TbActorMailbox implements TbActorCtx {
                     }
                 }
             } else {
+                //
                 msg.onTbActorStopped(stopReason);
             }
         }
     }
 
+
+    /**
+     * 尝试加入队列的方法
+     * @param newMsg
+     */
     private void tryProcessQueue(boolean newMsg) {
         if (ready.get() == READY) {
             if (newMsg || !highPriorityMsgs.isEmpty() || !normalPriorityMsgs.isEmpty()) {
                 if (busy.compareAndSet(FREE, BUSY)) {
+                    //这里调用了actor的doProcess
                     dispatcher.getExecutor().execute(this::processMailbox);
                 } else {
                     log.trace("[{}] MessageBox is busy, new msg: {}", selfId, newMsg);
@@ -139,6 +153,7 @@ public final class TbActorMailbox implements TbActorCtx {
             if (msg != null) {
                 try {
                     log.debug("[{}] Going to process message: {}", selfId, msg);
+                    //调用actor的执行方法
                     actor.process(msg);
                 } catch (TbRuleNodeUpdateException updateException) {
                     stopReason = TbActorStopReason.INIT_FAILED;
@@ -237,6 +252,7 @@ public final class TbActorMailbox implements TbActorCtx {
 
     @Override
     public void tellWithHighPriority(TbActorMsg actorMsg) {
+        //将消息放到队列中
         enqueue(actorMsg, HIGH_PRIORITY);
     }
 

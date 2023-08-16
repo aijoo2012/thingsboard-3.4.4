@@ -79,27 +79,38 @@ public class DefaultActorService extends TbApplicationEventListener<PartitionCha
     @Value("${actors.system.rule_dispatcher_pool_size:4}")
     private int ruleDispatcherSize;
 
+    /**第一阶段
+     * 项目启动加载所有的actor
+     */
     @PostConstruct
     public void initActorSystem() {
         log.info("Initializing actor system.");
+        log.info("开始初始化actor系统相关的");
         actorContext.setActorService(this);
+        //actory配置类，设置吞吐量、池子大小及最大数量
         TbActorSystemSettings settings = new TbActorSystemSettings(actorThroughput, schedulerPoolSize, maxActorInitAttempts);
         system = new DefaultTbActorSystem(settings);
 
+        //创建不同类型的dispatcher,并使用线程池用于后续异步处理消息
         system.createDispatcher(APP_DISPATCHER_NAME, initDispatcherExecutor(APP_DISPATCHER_NAME, appDispatcherSize));
         system.createDispatcher(TENANT_DISPATCHER_NAME, initDispatcherExecutor(TENANT_DISPATCHER_NAME, tenantDispatcherSize));
         system.createDispatcher(DEVICE_DISPATCHER_NAME, initDispatcherExecutor(DEVICE_DISPATCHER_NAME, deviceDispatcherSize));
         system.createDispatcher(RULE_DISPATCHER_NAME, initDispatcherExecutor(RULE_DISPATCHER_NAME, ruleDispatcherSize));
 
+        //将actors设置到上下文对象中
         actorContext.setActorSystem(system);
 
+        //创建整个Actor模型的根
         appActor = system.createRootActor(APP_DISPATCHER_NAME, new AppActor.ActorCreator(actorContext));
         actorContext.setAppActor(appActor);
-
+        //创建状态Actor，也是一个根，用于统计状态
         TbActorRef statsActor = system.createRootActor(TENANT_DISPATCHER_NAME, new StatsActor.ActorCreator(actorContext, "StatsActor"));
         actorContext.setStatsActor(statsActor);
-
+        //打印日志输出actor系统初始化缓存
         log.info("Actor system initialized.");
+        //启动成功之后执行第二阶段onApplicationEvent()
+        log.info("actor系统初始化第一阶段完成。即将执行第二阶段");
+
     }
 
     private ExecutorService initDispatcherExecutor(String dispatcherName, int poolSize) {
@@ -114,9 +125,16 @@ public class DefaultActorService extends TbApplicationEventListener<PartitionCha
         }
     }
 
+
+    /**
+     *第二阶段
+     * @param applicationReadyEvent
+     */
     @AfterStartUp(order = AfterStartUp.ACTOR_SYSTEM)
     public void onApplicationEvent(ApplicationReadyEvent applicationReadyEvent) {
         log.info("Received application ready event. Sending application init message to actor system");
+        log.info("actor系统执行第二阶段=>给顶层AppActor邮箱发送消息AppInitMsg");
+        //第二阶段：给顶层AppActor邮箱发送消息AppInitMsg
         appActor.tellWithHighPriority(new AppInitMsg());
     }
 
