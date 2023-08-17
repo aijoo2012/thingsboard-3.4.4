@@ -54,10 +54,16 @@ public abstract class RuleChainManagerActor extends ContextAwareActor {
         this.ruleChainService = systemContext.getRuleChainService();
     }
 
+
+    /**
+     * 初始化租户的规则引擎
+     */
     protected void initRuleChains() {
+        log.info("根据租户id:{},分页循环初始化租户的规则引擎.",tenantId);
         for (RuleChain ruleChain : new PageDataIterable<>(link -> ruleChainService.findTenantRuleChainsByType(tenantId, RuleChainType.CORE, link), ContextAwareActor.ENTITY_PACK_LIMIT)) {
             RuleChainId ruleChainId = ruleChain.getId();
             log.debug("[{}|{}] Creating rule chain actor", ruleChainId.getEntityType(), ruleChain.getId());
+            log.info("开始创建租户:{}的规则actor.当前的规则链类型是:{},规则链id是:{}",tenantId,ruleChainId.getEntityType(),ruleChain.getId());
             TbActorRef actorRef = getOrCreateActor(ruleChainId, id -> ruleChain);
             visit(ruleChain, actorRef);
             log.debug("[{}|{}] Rule Chain actor created.", ruleChainId.getEntityType(), ruleChainId.getId());
@@ -81,6 +87,12 @@ public abstract class RuleChainManagerActor extends ContextAwareActor {
         return getOrCreateActor(ruleChainId, eId -> ruleChainService.findRuleChainById(TenantId.SYS_TENANT_ID, eId));
     }
 
+    /**
+     * 创建租户的actor引用
+     * @param ruleChainId
+     * @param provider
+     * @return
+     */
     protected TbActorRef getOrCreateActor(RuleChainId ruleChainId, Function<RuleChainId, RuleChain> provider) {
         return ctx.getOrCreateChildActor(new TbEntityActorId(ruleChainId),
                 () -> DefaultActorService.RULE_DISPATCHER_NAME,

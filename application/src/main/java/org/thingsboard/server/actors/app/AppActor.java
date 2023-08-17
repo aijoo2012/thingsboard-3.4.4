@@ -72,11 +72,14 @@ public class AppActor extends ContextAwareActor {
 
     @Override
     protected boolean doProcess(TbActorMsg msg) {
+        //判断如果规则链没有初始化，就进行初始化各租户的规则链
         if (!ruleChainsInitialized) {
+            //初始化多个租户的规则链actore
             initTenantActors();
             ruleChainsInitialized = true;
             if (msg.getMsgType() != MsgType.APP_INIT_MSG && msg.getMsgType() != MsgType.PARTITION_CHANGE_MSG) {
                 log.warn("Rule Chains initialized by unexpected message: {}", msg);
+                log.error("规则链初始化异常了。异常信息:{}",msg);
             }
         }
         switch (msg.getMsgType()) {
@@ -118,18 +121,26 @@ public class AppActor extends ContextAwareActor {
         return true;
     }
 
+    /**
+     * 初始化多个租户的规则链actore
+     */
     private void initTenantActors() {
         log.info("Starting main system actor.");
+        log.info("在AppActor方法中判断规则链还未初始化,调用此方法分页循环各个租户信息进行规则链初始化");
         try {
             if (systemContext.isTenantComponentsInitEnabled()) {
                 PageDataIterable<Tenant> tenantIterator = new PageDataIterable<>(tenantService::findTenants, ENTITY_PACK_LIMIT);
                 for (Tenant tenant : tenantIterator) {
                     log.debug("[{}] Creating tenant actor", tenant.getId());
+                    log.info("开始创建租户:{}的actor",tenant.getId());
                     getOrCreateTenantActor(tenant.getId());
                     log.debug("[{}] Tenant actor created.", tenant.getId());
+                    log.info("创建租户:{}的actor创建成功",tenant.getId());
+
                 }
             }
             log.info("Main system actor started.");
+            log.info("初始化system actor 完成。也就是租户的规则链创建完成");
         } catch (Exception e) {
             log.warn("Unknown failure", e);
         }
@@ -189,7 +200,13 @@ public class AppActor extends ContextAwareActor {
         }
     }
 
+    /**
+     * 根据租户id,执行 new TenantActor.ActorCreator 来创建规则
+     * @param tenantId
+     * @return
+     */
     private TbActorRef getOrCreateTenantActor(TenantId tenantId) {
+        //调用TbActorMailbox的getOrCreateChildActor
         return ctx.getOrCreateChildActor(new TbEntityActorId(tenantId),
                 () -> DefaultActorService.TENANT_DISPATCHER_NAME,
                 () -> new TenantActor.ActorCreator(systemContext, tenantId));

@@ -75,6 +75,7 @@ public class TenantActor extends RuleChainManagerActor {
     public void init(TbActorCtx ctx) throws TbActorException {
         super.init(ctx);
         log.debug("[{}] Starting tenant actor.", tenantId);
+        log.info("开始创建租户的actor");
         try {
             Tenant tenant = systemContext.getTenantService().findTenantById(tenantId);
             if (tenant == null) {
@@ -85,13 +86,17 @@ public class TenantActor extends RuleChainManagerActor {
 
                 isCore = systemContext.getServiceInfoProvider().isService(ServiceType.TB_CORE);
                 isRuleEngine = systemContext.getServiceInfoProvider().isService(ServiceType.TB_RULE_ENGINE);
+                //判断是否创建规则引擎的actor
                 if (isRuleEngine) {
                     try {
+                        //判断当前租户的规则引擎是否开启了。如果开启了，就信息初始化规则引擎
                         if (getApiUsageState().isReExecEnabled()) {
                             log.debug("[{}] Going to init rule chains", tenantId);
+                            log.info("当前租户:{},开启了规则引擎。开始初始化当前租户下的所有规则引擎",tenantId);
                             initRuleChains();
                         } else {
                             log.info("[{}] Skip init of the rule chains due to API limits", tenantId);
+                            log.info("当前租户:{},未开启规则引擎。跳过初始化规则引擎操作",tenantId);
                         }
                     } catch (Exception e) {
                         cantFindTenant = true;

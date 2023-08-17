@@ -90,6 +90,13 @@ public class DefaultTbActorSystem implements TbActorSystem {
         return createActor(dispatcherId, creator, parent);
     }
 
+    /**
+     * 真正执行创建actor的方法
+     * @param dispatcherId
+     * @param creator
+     * @param parent
+     * @return
+     */
     private TbActorRef createActor(String dispatcherId, TbActorCreator creator, TbActorId parent) {
         Dispatcher dispatcher = dispatchers.get(dispatcherId);
         if (dispatcher == null) {
@@ -118,6 +125,7 @@ public class DefaultTbActorSystem implements TbActorSystem {
                     }
                     TbActorMailbox mailbox = new TbActorMailbox(this, settings, actorId, parentRef, actor, dispatcher);
                     actors.put(actorId, mailbox);
+                    //开始初始化actor
                     mailbox.initActor();
                     actorMailbox = mailbox;
                     if (parent != null) {

@@ -54,14 +54,22 @@ public final class TbActorMailbox implements TbActorCtx {
     private final AtomicBoolean destroyInProgress = new AtomicBoolean();
     private volatile TbActorStopReason stopReason;
 
+    /**
+     * 初始化actor
+     */
     public void initActor() {
         dispatcher.getExecutor().execute(() -> tryInit(1));
     }
 
+    /**
+     * 尝试初始化actor
+     * @param attempt
+     */
     private void tryInit(int attempt) {
         try {
             log.debug("[{}] Trying to init actor, attempt: {}", selfId, attempt);
             if (!destroyInProgress.get()) {
+                //初始化actor.现在是查看租户的actor。所以找到其子类：TenantActor
                 actor.init(this);
                 if (!destroyInProgress.get()) {
                     ready.set(READY);
@@ -143,6 +151,9 @@ public final class TbActorMailbox implements TbActorCtx {
         }
     }
 
+    /**
+     * 处理邮箱消息的
+     */
     private void processMailbox() {
         boolean noMoreElements = false;
         for (int i = 0; i < settings.getActorThroughput(); i++) {
@@ -153,7 +164,7 @@ public final class TbActorMailbox implements TbActorCtx {
             if (msg != null) {
                 try {
                     log.debug("[{}] Going to process message: {}", selfId, msg);
-                    //调用actor的执行方法
+                    //调用actor的执行方法。执行的是contextAwareActor中的process方法==>doProcess()调用appActor的
                     actor.process(msg);
                 } catch (TbRuleNodeUpdateException updateException) {
                     stopReason = TbActorStopReason.INIT_FAILED;
@@ -213,10 +224,18 @@ public final class TbActorMailbox implements TbActorCtx {
         system.stop(target);
     }
 
+    /**
+     * 获取活创建子actor
+     * @param actorId
+     * @param dispatcher
+     * @param creator
+     * @return
+     */
     @Override
     public TbActorRef getOrCreateChildActor(TbActorId actorId, Supplier<String> dispatcher, Supplier<TbActorCreator> creator) {
         TbActorRef actorRef = system.getActor(actorId);
         if (actorRef == null) {
+            //调用系统的创建子actor,跟着代码，==>TbActorMailbox.initActor方法，会发现调用TenantActor的方法
             return system.createChildActor(dispatcher.get(), creator.get(), selfId);
         } else {
             return actorRef;
